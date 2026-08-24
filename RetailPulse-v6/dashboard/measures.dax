@@ -1,0 +1,22 @@
+Total Revenue =
+SUM(customer_360_clv[total_revenue])
+
+Customers =
+DISTINCTCOUNT(customer_360_clv[customer_unique_id])
+
+Average Order Value =
+DIVIDE([Total Revenue], SUM(customer_360_clv[order_count]))
+
+Average CLV =
+AVERAGE(customer_360_clv[predicted_12m_clv])
+
+High Risk Customers =
+CALCULATE([Customers], customer_360_clv[churn_probability] >= 0.70)
+
+High Value High Risk =
+CALCULATE(
+    [Customers],
+    customer_360_clv[churn_probability] >= 0.70,
+    customer_360_clv[predicted_12m_clv] >=
+        PERCENTILE.INC(customer_360_clv[predicted_12m_clv], 0.75)
+)
