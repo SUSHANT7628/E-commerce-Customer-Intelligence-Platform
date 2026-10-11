@@ -1,0 +1,52 @@
+// RetailPulse — Power BI measures
+// Tables are the CSVs in artifacts/exports/ (see dashboard/POWERBI.md).
+
+// ---------- Executive Overview ----------
+Total Revenue = SUM ( customer_360_clv[total_revenue] )
+
+Total Orders = SUM ( customer_360_clv[order_count] )
+
+Customers = DISTINCTCOUNT ( customer_360_clv[customer_unique_id] )
+
+Average Order Value = DIVIDE ( [Total Revenue], [Total Orders] )
+
+Monthly Revenue = SUM ( monthly_kpis[revenue] )
+
+Revenue Growth MoM =
+VAR CurMonth = MAX ( monthly_kpis[month] )
+VAR Cur = CALCULATE ( [Monthly Revenue], monthly_kpis[month] = CurMonth )
+VAR Prev = CALCULATE ( [Monthly Revenue], monthly_kpis[month] = EDATE ( CurMonth, -1 ) )
+RETURN DIVIDE ( Cur - Prev, Prev )
+
+// ---------- Customer Intelligence ----------
+Active Customers (180d) = CALCULATE ( [Customers], customer_360_clv[recency] <= 180 )
+
+Repeat Customer Rate = AVERAGE ( customer_360_clv[is_repeat_customer] )
+
+Average CLV = AVERAGE ( customer_360_clv[predicted_12m_clv] )
+
+Total Predicted CLV = SUM ( customer_360_clv[predicted_12m_clv] )
+
+Segment Revenue Share =
+DIVIDE ( [Total Revenue], CALCULATE ( [Total Revenue], ALL ( customer_360_clv[customer_segment] ) ) )
+
+// ---------- Churn & Retention ----------
+Average Churn Probability = AVERAGE ( customer_360_clv[churn_probability] )
+
+High Risk Customers = CALCULATE ( [Customers], customer_360_clv[risk_tier] = "High" )
+
+High Value High Risk = CALCULATE ( [Customers], LEFT ( customer_360_clv[retention_priority], 2 ) = "P1" )
+
+CLV At Risk = SUM ( customer_360_clv[clv_at_risk] )
+
+P1 CLV At Risk = CALCULATE ( [CLV At Risk], LEFT ( customer_360_clv[retention_priority], 2 ) = "P1" )
+
+// ---------- Product & Seller ----------
+Category Revenue = SUM ( category_performance[revenue] )
+
+Seller Revenue = SUM ( seller_performance[revenue] )
+
+Top 10% Seller Revenue Share =
+VAR N = ROUNDUP ( COUNTROWS ( seller_performance ) * 0.1, 0 )
+VAR TopSellers = TOPN ( N, seller_performance, seller_performance[revenue], DESC )
+RETURN DIVIDE ( SUMX ( TopSellers, seller_performance[revenue] ), [Seller Revenue] )

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retailpulse"
+version = "1.0.0"
+description = "E-commerce customer intelligence: Customer 360, RFM, probabilistic CLV, leak-free churn prediction and retention prioritisation on the Olist dataset."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Sushant Kumar" }]
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "duckdb>=1.0",
+    "joblib>=1.3",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "streamlit>=1.45",
+    "plotly>=5.18",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.4"]
+postgres = ["sqlalchemy>=2.0", "psycopg[binary]>=3.1"]
+
+[project.scripts]
+retailpulse = "retailpulse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E702", "E731", "E501"]

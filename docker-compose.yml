@@ -1,0 +1,24 @@
+# docker compose up --build
+#   1. `pipeline` downloads Olist data (if missing) and builds artifacts
+#   2. `api` (http://localhost:8000/docs) and `dashboard` (http://localhost:8501) start after it
+services:
+  pipeline:
+    build: .
+    command: sh -c "retailpulse download && retailpulse run"
+    volumes: [ "./data:/app/data", "./artifacts:/app/artifacts" ]
+
+  api:
+    build: .
+    command: retailpulse serve --host 0.0.0.0 --port 8000
+    ports: [ "8000:8000" ]
+    volumes: [ "./artifacts:/app/artifacts:ro" ]
+    depends_on:
+      pipeline: { condition: service_completed_successfully }
+
+  dashboard:
+    build: .
+    command: retailpulse dashboard --host 0.0.0.0 --port 8501
+    ports: [ "8501:8501" ]
+    volumes: [ "./artifacts:/app/artifacts:ro" ]
+    depends_on:
+      pipeline: { condition: service_completed_successfully }
