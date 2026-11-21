@@ -62,6 +62,22 @@ def cmd_export_postgres(args):
     export_to_postgres(_settings(args), args.url, schema=args.schema)
 
 
+def cmd_postgres_build(args):
+    import os
+
+    from .postgres import build_all
+    url = args.url or os.getenv("RETAILPULSE_PG_URL")
+    if not url:
+        raise SystemExit("Pass --url or set RETAILPULSE_PG_URL")
+    result = build_all(_settings(args), url, check_parity=not args.skip_parity)
+    for t in result.get("parity", {}).get("tables", []):
+        print(f"{t['table']:<34} rows={t['rows_postgres']:>7,}  "
+              f"max_rel_diff={t['max_rel_diff_in_column_sums']:.1e}  {'OK' if t['match'] else 'MISMATCH'}")
+    if "parity" in result:
+        print(f"segment agreement: {result['parity']['segment_agreement']:.4%}")
+    print(f"report: {_settings(args).artifacts_dir / 'POSTGRES.md'}")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="retailpulse", description="E-commerce customer intelligence")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -94,7 +110,13 @@ def main(argv: list[str] | None = None) -> None:
     db.add_argument("--port", type=int, default=8501)
     db.set_defaults(func=cmd_dashboard)
 
-    pg = sub.add_parser("export-postgres", help="copy analytics tables to PostgreSQL")
+    pb = sub.add_parser("postgres-build", help="build the warehouse in PostgreSQL (sql/postgres/), "
+                                               "load model scores, check parity with DuckDB")
+    pb.add_argument("--url", help="postgresql+psycopg://user:pass@host:5432/db (or RETAILPULSE_PG_URL)")
+    pb.add_argument("--skip-parity", action="store_true")
+    pb.set_defaults(func=cmd_postgres_build)
+
+    pg = sub.add_parser("export-postgres", help="copy DuckDB analytics tables to PostgreSQL as-is")
     pg.add_argument("--url", required=True, help="postgresql+psycopg://user:pass@host:5432/db")
     pg.add_argument("--schema", default="analytics")
     pg.set_defaults(func=cmd_export_postgres)

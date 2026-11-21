@@ -1,11 +1,35 @@
 # docker compose up --build
-#   1. `pipeline` downloads Olist data (if missing) and builds artifacts
-#   2. `api` (http://localhost:8000/docs) and `dashboard` (http://localhost:8501) start after it
+#   1. `pipeline`  downloads Olist data (if missing), builds the DuckDB warehouse, trains and scores
+#   2. `warehouse` builds the PostgreSQL warehouse from sql/postgres/, loads the model scores,
+#                  and checks it against the DuckDB build (report: artifacts/POSTGRES.md)
+#   3. `api` (http://localhost:8000/docs) and `dashboard` (http://localhost:8501) start after it
+#   Power BI connects to PostgreSQL on localhost:5432 (db retailpulse, user/password retailpulse).
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: retailpulse
+      POSTGRES_PASSWORD: retailpulse
+      POSTGRES_DB: retailpulse
+    ports: [ "5432:5432" ]
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U retailpulse -d retailpulse" ]
+      interval: 5s
+      retries: 20
+
   pipeline:
     build: .
     command: sh -c "retailpulse download && retailpulse run"
     volumes: [ "./data:/app/data", "./artifacts:/app/artifacts" ]
+
+  warehouse:
+    build: .
+    command: retailpulse postgres-build --url postgresql+psycopg://retailpulse:retailpulse@postgres:5432/retailpulse
+    volumes: [ "./data:/app/data", "./artifacts:/app/artifacts" ]
+    depends_on:
+      pipeline: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
 
   api:
     build: .
@@ -22,3 +46,6 @@ services:
     volumes: [ "./artifacts:/app/artifacts:ro" ]
     depends_on:
       pipeline: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:

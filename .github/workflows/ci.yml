@@ -24,3 +24,27 @@ jobs:
           retailpulse generate --customers 3000
           retailpulse run --folds 2
           test -f artifacts/RESULTS.md
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: retailpulse
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      RETAILPULSE_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/retailpulse
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,postgres]"
+      - name: PostgreSQL warehouse matches the DuckDB build
+        run: pytest tests/test_postgres.py -v

@@ -38,7 +38,7 @@ def render(m: dict) -> str:
     pri = {r["retention_priority"]: r for r in m["priority"]}
     seg_by = {s["customer_segment"]: s for s in segs}
     top_seg = segs[0]
-    lapsed = sum(seg_by.get(k, {}).get("customer_share", 0) for k in ("Hibernating / Lost", "At Risk", "Can't Lose Them"))
+    lapsed = sum(seg_by.get(k, {}).get("customer_share", 0) for k in ("Hibernating / Lost", "At Risk"))
     p1 = pri.get("P1 - High Value / High Risk", {})
     imp = ch["feature_importance"]
 
@@ -48,7 +48,7 @@ def render(m: dict) -> str:
         f"{ch['horizon_days']}-day window only {_pct(1 - _churn_rate(m), 2)} of existing customers return.",
         f"**{top_seg['customer_segment']}** is the largest revenue segment "
         f"({_pct(top_seg['revenue_share'])} of revenue, {_pct(top_seg['customer_share'])} of customers); "
-        f"{_pct(lapsed)} of customers sit in lapsed segments (Hibernating/Lost, At Risk, Can't Lose Them).",
+        f"{_pct(lapsed)} of customers sit in lapsed segments (Hibernating / Lost, At Risk).",
         f"**Return is hard to predict but rankable.** The best model ({MODEL_LABELS[best]}) reaches "
         f"ROC-AUC {_f(b['roc_auc_mean'])} ± {_f(b['roc_auc_std'])}; targeting its top-10% list finds "
         f"returning customers at {_f(b['return_lift_top10pct_mean'], 1)}x the base rate.",
@@ -70,8 +70,10 @@ def render(m: dict) -> str:
         "## Dataset",
         _table(["Metric", "Value"], [
             ["Order window", f"{d['window_start']} → {d['window_end']}"],
+            ["Raw orders (all statuses)", f"{d.get('raw_orders', d['orders']):,}"],
+            ["Raw customers (customer_unique_id)", f"{d.get('raw_customers', d['customers']):,}"],
             ["Orders (excl. canceled/unavailable)", f"{d['orders']:,}"],
-            ["Customers (customer_unique_id)", f"{d['customers']:,}"],
+            ["Customers with a revenue-generating order", f"{d['customers']:,}"],
             ["Revenue (items + freight)", _money(d["revenue"])],
             ["Average order value", f"R$ {d['avg_order_value']:,.2f}"],
             ["Repeat-customer rate", _pct(d["repeat_customer_rate"], 2)],

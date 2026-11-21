@@ -17,20 +17,21 @@ Cleaning rules (`sql/01_staging.sql`):
 `customer_unique_id`. Using `customer_id` (a common mistake) makes every customer look
 like a one-time buyer.
 
-## 2. Customer 360 and RFM (`sql/02`, `sql/03`)
+## 2. Customer 360 and RFM (`sql/02`, `sql/03`; PostgreSQL: `sql/postgres/02`, `sql/postgres/03`)
 One row per `customer_unique_id` with value, behaviour and experience features.
 
 RFM: Recency and Monetary are quintiles (`NTILE(5)`, deterministic tie-break).
 Frequency uses fixed bins (1 → 1, 2 → 3, 3 → 4, 4+ → 5) because ~97% of customers have
 exactly one order — a frequency quintile would split identical customers at random.
 
+Seven segments (rules applied top to bottom; the first match wins):
+
 | Segment | Rule |
 |---|---|
 | Champions | R ≥ 4, F ≥ 4, M ≥ 4 |
 | Loyal Customers | R ≥ 4, F ≥ 3 |
 | New / Promising | R ≥ 4, single order |
-| Can't Lose Them | R ≤ 2, F ≥ 4, M ≥ 4 |
-| At Risk | R ≤ 2, F ≥ 3 |
+| At Risk | R ≤ 2, F ≥ 3 (lapsed repeat buyers, including high spenders) |
 | Hibernating / Lost | R ≤ 2, single order |
 | Potential Loyalists | R = 3, F ≥ 3 |
 | Needs Attention | R = 3, single order |
