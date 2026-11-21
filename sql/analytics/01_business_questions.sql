@@ -13,8 +13,8 @@ FROM analytics.customer_360_clv
 GROUP BY 1
 ORDER BY revenue DESC;
 
--- Q2. What share of customers is At Risk, Can't Lose Them or Hibernating / Lost?
-SELECT ROUND(100 * AVG(CASE WHEN customer_segment IN ('At Risk', 'Can''t Lose Them', 'Hibernating / Lost')
+-- Q2. What share of customers is At Risk or Hibernating / Lost?
+SELECT ROUND(100 * AVG(CASE WHEN customer_segment IN ('At Risk', 'Hibernating / Lost')
                             THEN 1 ELSE 0 END), 1) AS lapsed_customer_pct
 FROM analytics.customer_360_clv;
 

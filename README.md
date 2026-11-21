@@ -1,9 +1,12 @@
 # RetailPulse — E-commerce Customer Intelligence Platform
 
-End-to-end customer analytics on the **Olist Brazilian e-commerce dataset** (~100k orders):
-a SQL warehouse, Customer 360, RFM segmentation, **probabilistic CLV (BG/NBD + Gamma-Gamma)**,
-**leak-free churn prediction** with time-aware validation, retention prioritisation, a
-4-page dashboard and a REST API — runnable with three commands.
+End-to-end customer analytics on the **Olist Brazilian e-commerce dataset** (99,441 orders,
+96,096 customers): a **PostgreSQL** warehouse built with advanced SQL (CTEs, window functions),
+Customer 360, **RFM segmentation into 7 segments**, **12-month CLV (BG/NBD + Gamma-Gamma)**,
+**leak-free churn prediction** comparing Logistic Regression, Random Forest and Gradient Boosting
+under time-aware cross-validation, retention prioritisation, a **4-page Power BI executive
+dashboard** (plus a Streamlit version), and a REST API. Python ties it together, and the core
+runs with three commands.
 
 ```bash
 pip install -e ".[dev]"
@@ -15,6 +18,20 @@ retailpulse dashboard     # http://localhost:8501
 No internet? `retailpulse run --synthetic` generates an Olist-shaped dataset and runs the
 same pipeline.
 
+**PostgreSQL warehouse.** The SQL layer is written for PostgreSQL in [`sql/postgres/`](sql/postgres).
+It covers staging, Customer 360, RFM and the business marts. `retailpulse postgres-build` loads the
+raw CSVs with `COPY`, runs that SQL, loads the model scores into `analytics.customer_360_clv`, and
+checks every table against the DuckDB build of the same logic in [`sql/`](sql), which is what the
+zero-setup local run uses. On the real data, all 8 tables match: row counts are identical, column
+sums agree to 1e-14, and 100% of customers land in the same RFM segment
+([reports/POSTGRES.md](reports/POSTGRES.md)).
+
+```bash
+pip install -e ".[postgres]"
+retailpulse postgres-build --url postgresql+psycopg://user:pass@localhost:5432/retailpulse
+# or: docker compose up --build   (starts PostgreSQL 16 and does all of the above)
+```
+
 ## Business questions it answers
 - Where does revenue come from (months, categories, states, segments)?
 - Which customers are valuable, and how much will they spend in the next 12 months?
@@ -25,7 +42,8 @@ same pipeline.
 
 ```mermaid
 flowchart LR
-    A[Olist CSVs<br/>data/raw] -->|load| B[(DuckDB<br/>raw.*)]
+    A[Olist CSVs<br/>data/raw] -->|COPY| P[(PostgreSQL<br/>raw → staging → analytics<br/>sql/postgres/)]
+    A -->|load| B[(DuckDB<br/>raw.*)]
     B -->|01_staging.sql| C[staging.orders<br/>staging.order_items]
     C -->|02_customer_360.sql| D[analytics.customer_360]
     D -->|03_rfm_segments.sql| E[analytics.customer_rfm]
@@ -36,23 +54,28 @@ flowchart LR
     I --> J[(analytics.customer_360_clv)]
     J & F --> K[Streamlit dashboard]
     J --> L[FastAPI]
-    J & F --> M[CSV exports → Power BI]
+    J -->|scores| P
+    P --> PBI[Power BI<br/>4-page executive dashboard]
+    J & F --> M[CSV exports]
     G & H --> N[metrics.json + RESULTS.md]
 ```
 
 ## Results on the real Olist data
 Full, auto-generated report: **[reports/RESULTS.md](reports/RESULTS.md)**. Headlines:
 
-- Only **3.0%** of 94,983 customers ever order twice; in a typical 120-day window under 1%
-  of existing customers return. Retention is the growth lever.
-- **Churn model:** Logistic Regression wins time-aware validation with ROC-AUC ≈ 0.61; its
-  top-10% list finds returning customers at ≈ 2x the base rate. Review scores are among the
-  strongest predictors. (Modest, but honest — return on a marketplace is close to random,
-  and the old pipeline's "perfect" scores came from label leakage.)
-- **CLV:** in a 180-day holdout, BG/NBD + Gamma-Gamma predicted total revenue within ~12%
-  of actual; the original heuristic proxy over-forecast by ~350x.
-- **Retention priority:** ~4.4k high-value / high-risk (P1) customers, each with a
-  recommended action, exportable as a call list.
+- Data: 99,441 raw orders from 96,096 customers. After removing cancelled and unavailable orders: 98,199 orders from 94,983 customers.
+- Only **3.0%** of customers ever order twice. In a typical 120-day window, under 1% of
+  existing customers return. Retention is the growth lever.
+- **7 RFM segments.** New / Promising and Hibernating / Lost each hold about 38% of revenue, and 40% of customers are in lapsed segments.
+- **Churn model:** Logistic Regression beats Random Forest and Gradient Boosting in time-aware
+  validation, with ROC-AUC 0.606 ± 0.011. Its top-10% list finds returning customers at 2.1x the
+  base rate. Review scores are among the strongest predictors. The score is modest but honest:
+  return on a marketplace is close to random, and the old pipeline's "perfect" scores came from
+  label leakage.
+- **12-month CLV:** in a 180-day holdout, BG/NBD + Gamma-Gamma predicted total revenue within
+  11.5% of actual. The original heuristic proxy over-forecast by about 350x.
+- **Retention priority:** 4,455 high-value, high-risk (P1) customers, each with a recommended
+  action, exportable as a call list.
 
 ## Commands
 
@@ -63,10 +86,12 @@ Full, auto-generated report: **[reports/RESULTS.md](reports/RESULTS.md)**. Headl
 | `retailpulse run [--churn-horizon 120] [--folds 4]` | Build the warehouse, train and validate models, score every customer, write exports and reports |
 | `retailpulse dashboard` | 4-page Streamlit dashboard |
 | `retailpulse serve` | REST API (docs at `http://127.0.0.1:8000/docs`) |
-| `retailpulse export-postgres --url ...` | Copy analytics tables to PostgreSQL (`pip install -e ".[postgres]"`) |
+| `retailpulse postgres-build --url ...` | Build the warehouse in PostgreSQL from `sql/postgres/`, load model scores, check parity with DuckDB (`pip install -e ".[postgres]"`) |
+| `retailpulse export-postgres --url ...` | Copy the DuckDB analytics tables to PostgreSQL as-is |
 
-Or with Docker: `docker compose up --build` (downloads data, runs the pipeline, then starts
-the API on :8000 and dashboard on :8501).
+Or with Docker: `docker compose up --build`. It downloads the data, runs the pipeline, builds the
+PostgreSQL warehouse (PostgreSQL 16 on :5432), then starts the API on :8000 and the dashboard on
+:8501.
 
 ## Outputs (`artifacts/`, git-ignored)
 
@@ -83,6 +108,11 @@ segment, `predicted_12m_clv`, `p_alive`, `churn_probability`, `clv_at_risk`,
 `retention_priority` and `recommended_action`.
 
 ## Dashboard
+A 4-page **Power BI** executive dashboard on the PostgreSQL warehouse. The connection steps,
+tables, DAX measures and page layout are in [dashboard/POWERBI.md](dashboard/POWERBI.md) and
+[dashboard/measures.dax](dashboard/measures.dax). The same four pages run in Streamlit
+(`retailpulse dashboard`):
+
 1. **Executive Overview** — revenue, orders, customers, AOV, growth; monthly trend; categories; states.
 2. **Customer Intelligence** — active customers, repeat rate, CLV; segments; R×M heatmap; CLV distribution.
 3. **Churn & Retention** — churn rate, high-risk and P1 counts, CLV at risk; value-vs-risk scatter; P1 call list (CSV download); model validation and feature importance.
@@ -115,12 +145,14 @@ segment, `predicted_12m_clv`, `p_alive`, `churn_probability`, `clv_at_risk`,
 │   ├── pipeline.py     # end-to-end orchestration
 │   ├── report.py       # RESULTS.md generator
 │   ├── api.py          # FastAPI service
-│   └── export.py       # optional PostgreSQL export
-├── sql/                # 01-04 transformations + analytics/ business queries
-├── dashboard/          # Streamlit app, Power BI measures and guide
+│   ├── postgres.py     # PostgreSQL warehouse build + parity check
+│   └── export.py       # copy DuckDB tables to PostgreSQL as-is
+├── sql/                # 01-04 transformations + analytics/ business queries (DuckDB)
+│   └── postgres/       # the same layer in PostgreSQL SQL + analytics/ queries
+├── dashboard/          # Power BI guide + DAX measures, Streamlit app
 ├── notebooks/          # exploration notebook
 ├── docs/methodology.md # definitions, assumptions, limitations
-├── reports/RESULTS.md  # results from the latest real-data run
+├── reports/            # RESULTS.md (latest real-data run), POSTGRES.md (PostgreSQL build + parity)
 └── tests/              # unit + end-to-end tests (synthetic data)
 ```
 
@@ -136,14 +168,16 @@ the reports were templates. It also had methodology bugs that this version fixes
 | `class_weight="balanced"` distorted probabilities used for 0.7/0.4 risk cut-offs | Unweighted, calibrated models; quantile-based risk tiers |
 | CLV proxy treated one-time buyers as monthly buyers (~350x over-forecast) | BG/NBD + Gamma-Gamma with a holdout backtest against the old proxy |
 | Frequency quintiles on a 97% one-time-buyer base split identical customers at random | Fixed business bins for F |
-| PostgreSQL required but no schema or loader | Zero-setup DuckDB warehouse; optional PostgreSQL export |
+| PostgreSQL required but no schema or loader | PostgreSQL SQL layer + COPY loader (`postgres-build`), parity-checked against a zero-setup DuckDB build |
 
 ## Testing
 ```bash
-pytest        # 12 tests: leakage guards, model math, warehouse integrity, end-to-end run, API
+pytest        # 14 tests: leakage guards, model math, warehouse integrity, 7 segments, end-to-end run, API
+RETAILPULSE_TEST_PG_URL=postgresql+psycopg://... pytest tests/test_postgres.py   # PostgreSQL parity
 ruff check src tests dashboard
 ```
-CI runs both on Python 3.10 and 3.12 plus a full synthetic pipeline run.
+CI runs both on Python 3.10 and 3.12, a full synthetic pipeline run, and a PostgreSQL 16 job
+that builds the warehouse in PostgreSQL and checks it against DuckDB.
 
 ## Data licence
 The Olist dataset is © Olist, released under CC BY-NC-SA 4.0

@@ -1,4 +1,4 @@
-.PHONY: install data synthetic run test lint api dashboard docker clean
+.PHONY: install data synthetic run postgres test lint api dashboard docker clean
 
 install:        ## install package + dev tools
 	pip install -e ".[dev]"
@@ -11,6 +11,9 @@ synthetic:      ## generate an offline synthetic dataset instead
 
 run:            ## build warehouse, train models, score customers, write reports
 	retailpulse run
+
+postgres:       ## build the PostgreSQL warehouse (needs RETAILPULSE_PG_URL), check parity with DuckDB
+	retailpulse postgres-build
 
 test:
 	pytest

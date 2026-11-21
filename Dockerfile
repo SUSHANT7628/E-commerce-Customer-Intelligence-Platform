@@ -5,10 +5,10 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install .
-
 COPY sql ./sql
 COPY dashboard ./dashboard
+# editable install so the package finds sql/ and dashboard/ under /app
+RUN pip install -e ".[postgres]"
 
 # Data and artifacts are mounted as volumes (see docker-compose.yml).
 ENV RETAILPULSE_DATA_DIR=/app/data/raw RETAILPULSE_ARTIFACTS_DIR=/app/artifacts

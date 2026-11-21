@@ -159,8 +159,12 @@ def _dataset_stats(con) -> dict:
                SUM(order_revenue) AS revenue, AVG(order_revenue) AS avg_order_value
         FROM staging.orders""").iloc[0]
     repeat = warehouse.query(con, "SELECT AVG(is_repeat_customer) AS r FROM analytics.customer_360").iloc[0, 0]
+    raw = warehouse.query(con, """
+        SELECT (SELECT COUNT(*) FROM raw.orders) AS raw_orders,
+               (SELECT COUNT(DISTINCT customer_unique_id) FROM raw.customers) AS raw_customers""").iloc[0]
     return {"orders": int(row.orders), "customers": int(row.customers), "revenue": float(row.revenue),
-            "avg_order_value": float(row.avg_order_value), "repeat_customer_rate": float(repeat)}
+            "avg_order_value": float(row.avg_order_value), "repeat_customer_rate": float(repeat),
+            "raw_orders": int(raw.raw_orders), "raw_customers": int(raw.raw_customers)}
 
 
 def _segment_stats(scores: pd.DataFrame) -> list[dict]:

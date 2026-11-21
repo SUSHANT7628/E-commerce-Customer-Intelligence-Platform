@@ -5,6 +5,10 @@
 -- F uses fixed business bins: on Olist ~97% of customers order exactly once, so a
 -- frequency quintile would split identical customers at random.
 --   1 order -> 1 | 2 orders -> 3 | 3 orders -> 4 | 4+ orders -> 5
+--
+-- Seven segments: Champions, Loyal Customers, New / Promising, Potential Loyalists,
+-- Needs Attention, At Risk (lapsed repeat buyers, including high-spending ones)
+-- and Hibernating / Lost.
 -- =============================================================================
 CREATE OR REPLACE TABLE analytics.customer_rfm AS
 WITH scored AS (
@@ -26,7 +30,6 @@ SELECT
         WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Champions'
         WHEN r_score >= 4 AND f_score >= 3                  THEN 'Loyal Customers'
         WHEN r_score >= 4                                   THEN 'New / Promising'
-        WHEN r_score <= 2 AND f_score >= 4 AND m_score >= 4 THEN 'Can''t Lose Them'
         WHEN r_score <= 2 AND f_score >= 3                  THEN 'At Risk'
         WHEN r_score <= 2                                   THEN 'Hibernating / Lost'
         WHEN f_score >= 3                                   THEN 'Potential Loyalists'
